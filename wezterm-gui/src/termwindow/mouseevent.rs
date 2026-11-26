@@ -2836,6 +2836,13 @@ impl super::TermWindow {
                     self.handle_content_response(resp);
                 }
             }
+        } else if self.current_mouse_capture.is_none()
+            && released_capture.is_none()
+            && self.resource_status_rect().is_some_and(|rect| {
+                rect.contains(euclid::point2(event.coords.x as f32, event.coords.y as f32))
+            })
+        {
+            context.set_cursor(Some(MouseCursor::Arrow));
         } else if matches!(
             self.current_mouse_capture,
             None | Some(MouseCapture::TerminalPane(_))

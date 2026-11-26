@@ -2087,3 +2087,7 @@ chat-need-opencode-upgrade = This pane runs OpenCode 1. Chat needs OpenCode 2: r
 chat-need-not-here = This pane isn't on this machine.
 chat-need-unsupported = This agent can't be shown as a chat yet.
 chat-need-bridge = The ThinkTerm on that machine is too old for chat. Update it there.
+
+resource-monitor-local = This PC
+resource-monitor-disk = Disk
+resource-monitor-unavailable = Resource readings unavailable

@@ -790,10 +790,8 @@ pub struct Config {
     /// Enable local, platform-provided spelling checks in the Note editor.
     #[dynamic(default = "default_true")]
     pub note_spellcheck_enabled: bool,
-    /// Allow Note documents to load HTTP/HTTPS images. Remote images are
-    /// fetched lazily by the Note host and are subject to strict size and
-    /// network-address limits.
-    #[dynamic(default = "default_true")]
+    /// Allow Note documents to load HTTP/HTTPS images. Off by default.
+    #[dynamic(default)]
     pub note_remote_images_enabled: bool,
     /// Maximum reading width of the Note editor text column, in design
     /// pixels (2x Retina pixels on macOS). The column is centered when the
@@ -828,7 +826,8 @@ pub struct Config {
     #[dynamic(default = "default_true")]
     pub remote_mux_auto_claim_on_open: bool,
 
-    #[dynamic(default = "default_check_for_updates")]
+    /// Retained for existing configurations. Release checks are manual.
+    #[dynamic(default)]
     pub check_for_updates: bool,
     #[dynamic(
         default,
@@ -836,6 +835,7 @@ pub struct Config {
     )]
     pub show_update_window: bool,
 
+    /// Retained for existing configurations. Release checks are manual.
     #[dynamic(default = "default_update_interval")]
     pub check_for_updates_interval_seconds: u64,
 
@@ -1876,10 +1876,6 @@ impl Config {
     }
 }
 
-fn default_check_for_updates() -> bool {
-    cfg!(not(feature = "distro-defaults"))
-}
-
 fn default_pane_select_fg_color() -> RgbaColor {
     SrgbaTuple(0.75, 0.75, 0.75, 1.0).into()
 }
@@ -2636,8 +2632,8 @@ mod tests {
     }
 
     #[test]
-    fn remote_note_images_are_enabled_by_default() {
-        assert!(Config::default().note_remote_images_enabled);
+    fn remote_note_images_are_disabled_by_default() {
+        assert!(!Config::default().note_remote_images_enabled);
     }
 
     #[test]

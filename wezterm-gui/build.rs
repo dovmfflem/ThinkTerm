@@ -34,6 +34,8 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
         && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")
     {
+        // Unoptimized startup can overflow the default 1 MiB Windows stack.
+        println!("cargo:rustc-link-arg-bin=thinkterm-gui=/STACK:16777216");
         println!("cargo:rustc-link-arg-bins=/DELAYLOAD:opengl32.dll");
         println!("cargo:rustc-link-arg-bins=delayimp.lib");
     }

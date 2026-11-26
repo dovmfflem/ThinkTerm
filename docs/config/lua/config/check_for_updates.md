@@ -4,20 +4,10 @@ tags:
 ---
 # `check_for_updates` & `check_for_updates_interval_seconds`
 
-Wezterm checks regularly if there is a new stable version available
-on github, and shows a simple UI to let you know about the update
-(See [show_update_window](show_update_window.md) to control this UI).
+ThinkTerm checks GitHub for releases when you choose **Check for Updates**
+or start an update. The settings page can display the result of the last
+check from the local cache.
 
-By default it is checked a few seconds after each start, and then
-every 12 hours while it runs.
-
-NOTE that it doesn't automatically download the release.
-No data are collected for the wezterm project as part of this.
-
-Set `check_for_updates` to `false` to disable this completely or set
-`check_for_updates_interval_seconds` for an alternative update interval.
-
-```lua
-config.check_for_updates = true
-config.check_for_updates_interval_seconds = 43200
-```
+Existing configurations can still contain `check_for_updates` and
+`check_for_updates_interval_seconds`. These options have no effect in this
+build.

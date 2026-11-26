@@ -838,28 +838,6 @@ fn settings_control_font_weight(label_weight: u16) -> u16 {
     label_weight.min(400)
 }
 
-/// Names the background check interval the way someone would say it out
-/// loud, falling back to whole hours or minutes for a hand-edited value.
-fn format_check_interval(seconds: u64) -> String {
-    match seconds {
-        0 => crate::i18n::tr("settings-update-frequency-off"),
-        86_400 => crate::i18n::tr("settings-update-frequency-daily"),
-        604_800 => crate::i18n::tr("settings-update-frequency-weekly"),
-        s if s % 86_400 == 0 => settings_tr(
-            "settings-update-frequency-days",
-            &[("count", (s / 86_400).to_string())],
-        ),
-        s if s % 3_600 == 0 => settings_tr(
-            "settings-update-frequency-hours",
-            &[("count", (s / 3_600).to_string())],
-        ),
-        s => settings_tr(
-            "settings-update-frequency-minutes",
-            &[("count", (s.max(60) / 60).to_string())],
-        ),
-    }
-}
-
 /// "about 12 s left", from the average rate since the download started;
 /// None until it has run for a second, when the rate means little.
 fn download_time_left(started: Instant, done: u64, total: u64) -> Option<String> {
@@ -1679,10 +1657,6 @@ fn wrap_atoms(word: &str) -> Vec<String> {
     atoms
 }
 
-/// How often Settings offers to look for a new release, in seconds: the
-/// configuration's default of twelve hours, then less often.
-const UPDATE_FREQUENCY_CHOICES: &[u64] = &[12 * 60 * 60, 24 * 60 * 60, 7 * 24 * 60 * 60];
-
 /// What the expiry dropdown offers, shortest first.
 ///
 /// `None` last, because it is the one with no bound and reading the list in
@@ -2393,9 +2367,6 @@ enum SettingsAction {
     SetAgentStatus(crate::native_settings::NativeThreadStatus),
     ToggleDownloadSourceMenu,
     SetDownloadSource(thinkterm_update::DownloadSource),
-    ToggleCheckForUpdates,
-    ToggleUpdateFrequencyMenu,
-    SetUpdateFrequency(u64),
     /// Swallows clicks that land in an open dropdown's padding or row
     /// gaps instead of letting them reach the controls underneath.
     DropdownMenuBackdrop,
@@ -2551,8 +2522,6 @@ enum SettingsDropdown {
     MacGlass,
     /// Where updates download the release from, on the Updates page.
     DownloadSource,
-    /// How often the app looks for a new release, on the Updates page.
-    UpdateFrequency,
     DefaultShell,
     CommandPaletteHotkey,
     WebLinkTtl,
@@ -4833,8 +4802,6 @@ impl SettingsWindow {
                         | SettingsAction::SetMacGlass(_)
                         | SettingsAction::ToggleDownloadSourceMenu
                         | SettingsAction::SetDownloadSource(_)
-                        | SettingsAction::ToggleUpdateFrequencyMenu
-                        | SettingsAction::SetUpdateFrequency(_)
                         | SettingsAction::ToggleDefaultShellMenu
                         | SettingsAction::SetDefaultShell(_)
                         | SettingsAction::ToggleCommandPaletteHotkeyMenu
@@ -7250,51 +7217,6 @@ impl SettingsWindow {
                     Ok(()) => settings_tr(
                         "settings-status-value-now",
                         &[("setting", setting), ("value", download_source_label(source))],
-                    ),
-                    Err(err) => settings_tr(
-                        "settings-status-save-error",
-                        &[("setting", setting), ("error", format!("{err:#}"))],
-                    ),
-                };
-            }
-            SettingsAction::ToggleCheckForUpdates => {
-                self.ui.open_dropdown = None;
-                let enabled = !crate::native_settings::checks_for_updates(&self.native_settings);
-                self.native_settings.workspaces.check_for_updates = Some(enabled);
-                let setting = crate::i18n::tr("settings-update-automatic");
-                self.status = match crate::native_settings::save(&self.native_settings) {
-                    Ok(()) => settings_tr(
-                        "settings-status-value-now",
-                        &[
-                            ("setting", setting),
-                            (
-                                "value",
-                                crate::i18n::tr(if enabled { "common-on" } else { "common-off" }),
-                            ),
-                        ],
-                    ),
-                    Err(err) => settings_tr(
-                        "settings-status-save-error",
-                        &[("setting", setting), ("error", format!("{err:#}"))],
-                    ),
-                };
-            }
-            SettingsAction::ToggleUpdateFrequencyMenu => {
-                self.ui.open_dropdown =
-                    if self.ui.open_dropdown == Some(SettingsDropdown::UpdateFrequency) {
-                        None
-                    } else {
-                        Some(SettingsDropdown::UpdateFrequency)
-                    };
-            }
-            SettingsAction::SetUpdateFrequency(seconds) => {
-                self.ui.open_dropdown = None;
-                self.native_settings.workspaces.update_check_interval_seconds = Some(seconds);
-                let setting = crate::i18n::tr("settings-update-frequency");
-                self.status = match crate::native_settings::save(&self.native_settings) {
-                    Ok(()) => settings_tr(
-                        "settings-status-value-now",
-                        &[("setting", setting), ("value", format_check_interval(seconds))],
                     ),
                     Err(err) => settings_tr(
                         "settings-status-save-error",
@@ -17936,58 +17858,11 @@ impl SettingsWindow {
             hero_buttons,
         )?;
 
-        // One line each: whether and how often the app looks by itself,
-        // then when it last did.
         let card_y = hero_y + hero_height + gap;
-        let card_height = self.compact_card_height(3);
+        let card_height = self.compact_card_height(1);
         let row_step = self.compact_row_step();
-        let first_row_y = card_y + self.ui_px(12.0);
+        let checked_row_y = card_y + self.ui_px(12.0);
         self.paint_group_card(layers, x, card_y, max_width, card_height)?;
-        let (tx, tw) = self.paint_band_tile(
-            layers,
-            row_x,
-            first_row_y,
-            row_step,
-            row_width,
-            SvgIcon::RefreshCw,
-            TileColor::Green,
-        )?;
-        self.paint_toggle_setting_row_with_hint(
-            layers,
-            tx,
-            first_row_y,
-            tw,
-            row_step,
-            &crate::i18n::tr("settings-update-automatic"),
-            "settings-update-automatic-description",
-            crate::native_settings::checks_for_updates(&self.native_settings),
-            SettingsAction::ToggleCheckForUpdates,
-        )?;
-        let frequency_row_y = first_row_y + row_step;
-        self.paint_separator(layers, tx, frequency_row_y, tw)?;
-        let (tx, tw) = self.paint_band_tile(
-            layers,
-            row_x,
-            frequency_row_y,
-            row_step,
-            row_width,
-            SvgIcon::Calendar,
-            TileColor::Orange,
-        )?;
-        let frequency = format_check_interval(
-            crate::native_settings::update_check_interval_seconds(&self.native_settings),
-        );
-        self.paint_band_dropdown_row(
-            layers,
-            (tx, frequency_row_y, tw, row_step),
-            SettingsDropdown::UpdateFrequency,
-            SettingsAction::ToggleUpdateFrequencyMenu,
-            &crate::i18n::tr("settings-update-frequency"),
-            "settings-update-frequency-description",
-            &frequency,
-            crate::native_settings::checks_for_updates(&self.native_settings),
-        )?;
-        let checked_row_y = frequency_row_y + row_step;
         let (tx, tw) = self.paint_band_tile(
             layers,
             row_x,
@@ -21165,7 +21040,6 @@ impl SettingsWindow {
             SettingsDropdown::MacGlass => self.mac_glass_menu_options(),
             SettingsDropdown::MainRenderer => self.main_renderer_menu_options(),
             SettingsDropdown::DownloadSource => self.download_source_menu_options(),
-            SettingsDropdown::UpdateFrequency => self.update_frequency_menu_options(),
             SettingsDropdown::DefaultShell => self.default_shell_menu_options(),
             SettingsDropdown::CommandPaletteHotkey => self.command_palette_hotkey_menu_options(),
             SettingsDropdown::WebLinkTtl => self.web_link_ttl_menu_options(),
@@ -21232,21 +21106,6 @@ impl SettingsWindow {
             &value,
             true,
         )
-    }
-
-    fn update_frequency_menu_options(&self) -> Vec<(String, SettingsAction, bool)> {
-        let current = crate::native_settings::update_check_interval_seconds(&self.native_settings);
-        let options: Vec<(String, SettingsAction, bool)> = UPDATE_FREQUENCY_CHOICES
-            .iter()
-            .map(|&seconds| {
-                (
-                    format_check_interval(seconds),
-                    SettingsAction::SetUpdateFrequency(seconds),
-                    seconds == current,
-                )
-            })
-            .collect();
-        options
     }
 
     /// A hinted label and a dropdown showing `value`, both centred in a

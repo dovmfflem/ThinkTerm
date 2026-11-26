@@ -45,6 +45,9 @@ impl crate::TermWindow {
                 Some(bar) if bar.at_bottom => bottom = bottom.min(self.pane_area_bottom()),
                 _ => {}
             }
+            if self.resource_status_height() > 0. {
+                bottom = bottom.min(self.pane_area_bottom());
+            }
             // Never above the terminal area: with no top padding (tabline.wez
             // zeroes it) the half-cell overhang reached into the window tab
             // row.

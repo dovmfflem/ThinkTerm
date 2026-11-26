@@ -33,6 +33,7 @@ pub const LANGUAGE_OPTIONS: &[LanguageOption] = &[
     LanguageOption { preference: "fr-FR", native_name: "Français" },
     LanguageOption { preference: "de-DE", native_name: "Deutsch" },
     LanguageOption { preference: "ru-RU", native_name: "Русский" },
+    LanguageOption { preference: "ko-KR", native_name: "한국어" },
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,11 +48,12 @@ const JA_JP: Locale = Locale { code: "ja-JP", source: include_str!("../i18n/ja-J
 const FR_FR: Locale = Locale { code: "fr-FR", source: include_str!("../i18n/fr-FR.ftl") };
 const DE_DE: Locale = Locale { code: "de-DE", source: include_str!("../i18n/de-DE.ftl") };
 const RU_RU: Locale = Locale { code: "ru-RU", source: include_str!("../i18n/ru-RU.ftl") };
+const KO_KR: Locale = Locale { code: "ko-KR", source: include_str!("../i18n/ko-KR.ftl") };
 
 /// The one registry that drives negotiation, catalogue construction and
 /// the parity test. Adding a locale is a resource, one entry here, and one
 /// user-facing entry in `LANGUAGE_OPTIONS`.
-const SUPPORTED_LOCALES: &[Locale] = &[EN_US, ZH_CN, JA_JP, FR_FR, DE_DE, RU_RU];
+const SUPPORTED_LOCALES: &[Locale] = &[EN_US, ZH_CN, JA_JP, FR_FR, DE_DE, RU_RU, KO_KR];
 
 impl Locale {
     fn index(self) -> usize {
@@ -228,7 +230,11 @@ fn format(id: &str, args: Option<&FluentArgs<'_>>) -> String {
         return value;
     }
     if locale != EN_US {
-        report_once(format!("missing localization key {id:?} for {}; using en-US", locale.code));
+        // Korean covers the desktop menus and common work flows. The remaining
+        // strings use English until they have been translated.
+        if locale != KO_KR {
+            report_once(format!("missing localization key {id:?} for {}; using en-US", locale.code));
+        }
         if let Some(value) = format_for(EN_US, id, args) {
             return value;
         }
@@ -314,7 +320,7 @@ mod tests {
     fn every_shipped_language_has_the_complete_key_set() {
         let english = message_ids(EN_US.source);
         assert!(!english.is_empty());
-        for locale in SUPPORTED_LOCALES.iter().copied().filter(|l| *l != EN_US) {
+        for locale in SUPPORTED_LOCALES.iter().copied().filter(|l| *l != EN_US && *l != KO_KR) {
             let ids = message_ids(locale.source);
             let missing: Vec<_> = english.difference(&ids).collect();
             let extra: Vec<_> = ids.difference(&english).collect();
@@ -324,6 +330,22 @@ mod tests {
                 locale.code
             );
         }
+    }
+
+    #[test]
+    fn korean_catalog_covers_the_desktop_menus() {
+        let english = message_ids(EN_US.source);
+        let korean = message_ids(KO_KR.source);
+        assert!(korean.is_subset(&english));
+        for id in english.iter().filter(|id| {
+            ["menu-", "command-", "settings-section-", "resource-monitor-"]
+                .iter()
+                .any(|prefix| id.starts_with(prefix))
+        }) {
+            assert!(korean.contains(id), "missing Korean menu label {id}");
+        }
+        assert_eq!(resolve_preference("system", &["ko-KR".to_string()]), "ko-KR");
+        assert_eq!(format_for(KO_KR, "command-settings", None).as_deref(), Some("설정…"));
     }
 
     #[test]

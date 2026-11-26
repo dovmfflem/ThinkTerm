@@ -176,6 +176,7 @@ winapi = { workspace=true, features = [
     "processthreadsapi",
     "psapi",
     "synchapi",
+    "sysinfoapi",
     "winsock2",
 ]}
 windows = { workspace=true, features = [

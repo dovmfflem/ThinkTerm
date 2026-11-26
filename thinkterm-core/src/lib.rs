@@ -3,6 +3,7 @@
 //! Both the desktop GUI and `thinkterm tui` consume this crate.  It contains
 //! no window-system or terminal-rendering code and never owns mux state.
 
+pub mod resource_metrics;
 pub mod secret;
 pub mod ssh_hosts;
 

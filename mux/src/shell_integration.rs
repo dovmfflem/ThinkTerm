@@ -272,13 +272,18 @@ async fn upload(sftp: &wezterm_ssh::Sftp, path: &str, content: &str) -> anyhow::
         .create(path.to_string())
         .await
         .with_context(|| format!("creating ~/{path}"))?;
-    file.write_all(content.as_bytes())
+    file.write_all(script_with_lf(content).as_bytes())
         .await
         .with_context(|| format!("writing ~/{path}"))?;
     file.flush()
         .await
         .with_context(|| format!("writing ~/{path}"))?;
     Ok(())
+}
+
+fn script_with_lf(content: &str) -> String {
+    // include_str! preserves the line endings of the Windows checkout.
+    content.replace("\r\n", "\n")
 }
 
 /// What the helper says on its last line.
@@ -312,6 +317,14 @@ fn parse_report(output: &str) -> Option<Report> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn uploaded_scripts_use_lf_line_endings() {
+        let lf = "case \"$TERM\" in\n  dumb) return 0 ;;\nesac\n";
+        let mixed = "case \"$TERM\" in\r\n  dumb) return 0 ;;\nesac\r\n";
+        assert_eq!(script_with_lf(mixed), lf);
+        assert_eq!(script_with_lf(lf), lf);
+    }
 
     #[test]
     fn reports_are_read_from_the_last_line() {

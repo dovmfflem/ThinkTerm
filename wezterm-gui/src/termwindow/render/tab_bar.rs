@@ -116,11 +116,12 @@ impl crate::TermWindow {
     /// moves the panes without taking any rows from them.
     pub(crate) fn pane_area_layout_insets(&self) -> (f32, f32) {
         let window_tabs = self.window_tab_row_layout_height();
-        match self.terminal_bar_placement() {
+        let (top, bottom) = match self.terminal_bar_placement() {
             Some(bar) if bar.at_bottom => (window_tabs, bar.height),
             Some(bar) => (window_tabs + bar.height, 0.),
             None => (window_tabs, 0.),
-        }
+        };
+        (top, bottom + self.resource_status_height())
     }
 
     /// Where the bottom-most panes' backgrounds end: the window's bottom
@@ -129,10 +130,13 @@ impl crate::TermWindow {
     /// show the panes through it.
     pub(crate) fn pane_area_bottom(&self) -> f32 {
         let window_bottom = self.dimensions.pixel_height as f32;
+        let resource_status = self.resource_status_height();
+        let border_bottom = self.get_os_border().bottom.get() as f32;
         match self.terminal_bar_placement() {
             Some(bar) if bar.at_bottom => {
-                (window_bottom - self.get_os_border().bottom.get() as f32 - bar.height).max(0.)
+                (window_bottom - border_bottom - bar.height - resource_status).max(0.)
             }
+            _ if resource_status > 0. => (window_bottom - border_bottom - resource_status).max(0.),
             _ => window_bottom,
         }
     }

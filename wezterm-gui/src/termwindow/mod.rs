@@ -167,6 +167,7 @@ pub mod remote_thread_view;
 pub(crate) mod remote_walk;
 pub mod render;
 pub mod resize;
+mod resource_monitor;
 pub(crate) mod share;
 mod selection;
 mod sidebar_hover;
@@ -3495,6 +3496,7 @@ pub struct TermWindow {
     line_quad_scratch: RefCell<HeapQuadAllocator>,
 
     last_status_call: Instant,
+    resource_monitor: resource_monitor::ResourceMonitor,
     /// Throttle for `log_gpu_allocator_throttled`; runtime-only diagnostics.
     last_gpu_allocator_log: Cell<Option<Instant>>,
     cursor_blink_state: RefCell<ColorEase>,
@@ -5368,7 +5370,8 @@ impl TermWindow {
             pixel_height: ((terminal_size.rows * render_metrics.cell_size.height as usize)
                 + padding_top
                 + padding_bottom) as usize
-                + tab_bar_height,
+                + tab_bar_height
+                + resource_monitor::status_height(&fontconfig, dpi),
             dpi,
         };
 
@@ -5572,6 +5575,7 @@ impl TermWindow {
                 &config,
             )),
             last_status_call: Instant::now(),
+            resource_monitor: resource_monitor::ResourceMonitor::default(),
             last_gpu_allocator_log: Cell::new(None),
             cursor_blink_state: RefCell::new(ColorEase::new(
                 config.cursor_blink_rate,
@@ -6095,7 +6099,6 @@ impl TermWindow {
             myself.emit_status_event();
         }
 
-        crate::update::start_update_checker();
         // Register with the window's *current* mux id, not the one we were
         // constructed with: restoring a saved thread above may have adopted
         // this window onto a different (already-live) mux window via
@@ -8303,6 +8306,7 @@ impl TermWindow {
     }
 
     fn emit_status_event(&mut self) {
+        self.update_resource_monitor();
         self.emit_window_event("update-right-status", None);
         self.emit_window_event("update-status", None);
     }

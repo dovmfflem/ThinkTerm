@@ -2005,3 +2005,7 @@ chat-need-opencode-upgrade = このペインでは OpenCode 1 が動いていま
 chat-need-not-here = このペインはこのマシン上にありません。
 chat-need-unsupported = このエージェントはまだチャット表示に対応していません。
 chat-need-bridge = そのマシンの ThinkTerm が古いため、チャットを使えません。そちらで更新してください。
+
+resource-monitor-local = この PC
+resource-monitor-disk = ディスク
+resource-monitor-unavailable = リソース情報を取得できません

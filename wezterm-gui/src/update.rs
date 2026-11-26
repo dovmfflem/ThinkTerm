@@ -2,7 +2,6 @@ use mux::connui::ConnectionUI;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
-use wezterm_toast_notification::*;
 
 // The release lookup, the running version and the version comparison are
 // shared with `thinkterm update` and the mux client's remote update; the GUI
@@ -18,7 +17,7 @@ lazy_static::lazy_static! {
 
 /// Whether a release newer than this build is known. What the update
 /// capsule reads on every paint, so it is a flag and not a file: set from
-/// the cache at startup and by the checker after every check.
+/// the cache at startup and after a manual check.
 ///
 /// Nothing is written into terminal output any more. The upstream banner
 /// printed two rows and an icon into every new local shell and left them in
@@ -69,9 +68,8 @@ pub fn available_version() -> Option<String> {
 
 /// Record the flag and the release it is about; when either changes, ask
 /// every window to repaint so the update notice appears, goes away or
-/// names the new release. Only the checker thread and a check asked for
-/// from Settings call this: both run once the GUI is up, and spawning onto
-/// the main thread needs its scheduler.
+/// names the new release. The manual check and installer call this once
+/// the GUI scheduler is running.
 fn set_update_available(available: bool, new_build: bool, latest: &Release) {
     AVAILABLE_IS_NEW_BUILD.store(new_build, Ordering::Relaxed);
     let renamed = AVAILABLE_RELEASE
@@ -93,12 +91,9 @@ fn set_update_available(available: bool, new_build: bool, latest: &Release) {
 }
 
 /// Seed the flag from the last check on disk, so the dot is right from the
-/// first frame rather than after the checker's first delay. Called before
-/// any window exists, so it only stores: the first paint reads it.
+/// first frame without making a request. Called before any window exists,
+/// so it only stores: the first paint reads it.
 pub fn load_last_release_info() {
-    if !crate::native_settings::checks_for_updates(&crate::native_settings::load_shared()) {
-        return;
-    }
     let status = cached_update_status();
     AVAILABLE_IS_NEW_BUILD.store(
         status.update_available
@@ -119,7 +114,7 @@ pub fn load_last_release_info() {
 
 /// Everything the Settings > Update page can say without touching the network.
 ///
-/// `update_checker` already persists the last release it saw to
+/// A manual check persists the last release it saw to
 /// `DATA_DIR/check_update`, and the filesystem stamps that write with the time
 /// of the check. Reading it back is pure local state, which is what lets the
 /// page render on the UI thread: it can name the running build, the newest
@@ -213,8 +208,8 @@ mod update_version_tests {
 
 }
 
-/// Ask GitHub now, as the background checker does on its schedule: record
-/// the answer where Settings reads it and set the dot. Blocks on the
+/// Ask GitHub at the user's request and record the answer where Settings
+/// reads it and set the dot. Blocks on the
 /// network, so callers run it off the UI thread. No toast: whoever asked is
 /// looking at the answer.
 pub fn check_now() -> anyhow::Result<()> {
@@ -255,8 +250,7 @@ pub fn newest_release(offered: Release) -> Release {
 }
 
 /// Persist the newest release seen; the file's mtime is the time of the
-/// check. Written beside it and renamed over it, so a reader -- Settings, or
-/// the other of the two threads that check -- never sees half a file.
+/// check. Written beside it and renamed over it so readers see a whole file.
 fn record_latest_release(latest: &Release) -> anyhow::Result<()> {
     use anyhow::Context;
     let update_file_name = config::DATA_DIR.join("check_update");
@@ -271,102 +265,9 @@ fn record_latest_release(latest: &Release) -> anyhow::Result<()> {
     saved.with_context(|| format!("saving the update check to {}", update_file_name.display()))
 }
 
-/// Returns true if the provided socket path is dead.
-fn update_checker() {
-    // A check is due an interval after the last one, a few seconds in at the
-    // earliest so it does not compete with starting up. The last one is the
-    // record on disk -- whichever process made it, a "Check for Updates"
-    // included -- so a weekly check stays weekly across launches; or this
-    // process's last attempt, so a failing one is not retried every minute.
-    // The switch and the interval are read again every minute, so a change
-    // in Settings applies without first waiting out the interval it replaced.
-    let initial_interval = Duration::from_secs(10);
-    let poll = Duration::from_secs(60);
-
-    let force_ui = always_show_update_ui();
-
-    std::thread::sleep(initial_interval);
-
-    let my_sock = config::RUNTIME_DIR.join(format!("gui-sock-{}", unsafe { libc::getpid() }));
-
-    // Wall-clock time, so a night the machine slept through counts.
-    let mut last_attempt: Option<SystemTime> = None;
-    loop {
-        let settings = crate::native_settings::load_shared();
-        let interval =
-            Duration::from_secs(crate::native_settings::update_check_interval_seconds(&settings));
-        let last_check = last_checked().max(last_attempt);
-        let due = crate::native_settings::checks_for_updates(&settings)
-            && last_check.map_or(true, |at| {
-                at.elapsed().map_or(true, |elapsed| elapsed >= interval)
-            });
-        if !due {
-            std::thread::sleep(poll);
-            continue;
-        }
-        last_attempt = Some(SystemTime::now());
-
-        // Figure out which other wezterm-guis are running.
-        // We have a little "consensus protocol" to decide which
-        // of us will show the toast notification or show the update
-        // window: the one of us that sorts first in the list will
-        // own doing that, so that if there are a dozen gui processes
-        // running, we don't spam the user with a lot of notifications.
-        let socks = wezterm_client::discovery::discover_gui_socks();
-
-        if let Ok(mut latest) = get_latest_release_info() {
-            let current = running_release_version();
-            // A package made by hand with this release's version is told
-            // about the release once its code is the later one.
-            let verdict = judge_release(&mut latest, &current, cached_release().as_ref());
-            let newer = verdict.newer;
-            set_update_available(newer || force_ui, verdict.new_build, &latest);
-            if newer || force_ui {
-                log::info!(
-                    "latest release {} is newer than current build {}",
-                    latest.tag_name,
-                    current
-                );
-
-                let url = release_tag_url(&latest.tag_name);
-
-                if force_ui || socks.is_empty() || socks[0] == my_sock {
-                    persistent_toast_notification_with_click_to_open_url(
-                        &crate::i18n::tr(if verdict.new_build {
-                            "update-toast-new-build-title"
-                        } else {
-                            "update-toast-title"
-                        }),
-                        &crate::i18n::tr("update-toast-body"),
-                        &url,
-                    );
-                }
-            }
-
-            if let Err(err) = record_latest_release(&latest) {
-                log::warn!("{err:#}");
-            }
-        }
-
-        std::thread::sleep(poll);
-    }
-}
-
 fn always_show_update_ui() -> bool {
     std::env::var_os("THINKTERM_ALWAYS_SHOW_UPDATE_UI").is_some()
         || std::env::var_os("WEZTERM_ALWAYS_SHOW_UPDATE_UI").is_some()
-}
-
-pub fn start_update_checker() {
-    static CHECKER_STARTED: AtomicBool = AtomicBool::new(false);
-    if let Ok(false) =
-        CHECKER_STARTED.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-    {
-        std::thread::Builder::new()
-            .name("update_checker".into())
-            .spawn(update_checker)
-            .expect("failed to spawn update checker thread");
-    }
 }
 
 /// The updater's GETs through reqwest rather than http_req (see

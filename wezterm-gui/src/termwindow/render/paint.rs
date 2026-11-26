@@ -5414,6 +5414,8 @@ impl crate::TermWindow {
             // and take the pointer there.
             self.paint_terminal_bar(&mut layers)
                 .context("paint_terminal_bar")?;
+            self.paint_resource_status(&mut layers)
+                .context("paint_resource_status")?;
             if let Some(pane) = self.get_active_pane_or_overlay() {
                 for split in &splits {
                     // Panes rearranged: clear of those on their way, and of

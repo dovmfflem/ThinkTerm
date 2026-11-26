@@ -36,9 +36,9 @@ information.
 
 ## Update Checking
 
-By default, once every 24 hours, ThinkTerm makes an HTTP request to GitHub's
-release API in order to determine if a newer version is available and to
-notify you if that is the case.
+ThinkTerm makes a request to GitHub's release API when you choose Check for
+Updates or start an update. Startup reads the last check from the local
+cache. The legacy automatic update settings are kept for compatibility.
 
 The content of that request is private between your machine and GitHub. The
 contributors to ThinkTerm cannot see inside that request and therefore cannot
@@ -48,8 +48,11 @@ useful for reaching a private fork. (The `install.sh` script, which you run
 by hand, honours `GITHUB_TOKEN` for the same purpose; the app never reads
 that variable.)
 
-If you wish, you can disable update checking by setting
-`check_for_updates = false`.
+## Images in Notes
+
+Notes load local images. Loading an HTTP or HTTPS image requires explicitly
+setting `note_remote_images_enabled = true`. The image host then receives an
+ordinary web request when the Note shows the image.
 
 ## Browser Access
 

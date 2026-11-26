@@ -2084,3 +2084,7 @@ chat-need-opencode-upgrade = Ce volet exécute OpenCode 1. La discussion demande
 chat-need-not-here = Ce volet n’est pas sur cette machine.
 chat-need-unsupported = Cet agent ne peut pas encore être affiché en chat.
 chat-need-bridge = Le ThinkTerm de cette machine est trop ancien pour le chat. Mettez-le à jour là-bas.
+
+resource-monitor-local = Ce PC
+resource-monitor-disk = Disque
+resource-monitor-unavailable = Mesures des ressources indisponibles

@@ -1970,3 +1970,7 @@ chat-need-opencode-upgrade = В этой панели запущен OpenCode 1.
 chat-need-not-here = Эта панель находится не на этой машине.
 chat-need-unsupported = Этот агент пока нельзя показать как чат.
 chat-need-bridge = ThinkTerm на той машине слишком старый для чата. Обновите его там.
+
+resource-monitor-local = Этот компьютер
+resource-monitor-disk = Диск
+resource-monitor-unavailable = Показатели ресурсов недоступны

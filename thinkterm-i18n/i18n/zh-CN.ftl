@@ -2005,3 +2005,7 @@ chat-need-opencode-upgrade = 这个面板里是 OpenCode 1，聊天要 OpenCode 
 chat-need-not-here = 这个面板不在这台机器上。
 chat-need-unsupported = 这个 agent 还不能用聊天的样子看。
 chat-need-bridge = 那台机器上的 ThinkTerm 太旧，用不了聊天，在那边更新一下。
+
+resource-monitor-local = 此电脑
+resource-monitor-disk = 磁盘
+resource-monitor-unavailable = 无法读取资源用量
